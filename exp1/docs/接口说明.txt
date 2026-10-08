@@ -1,0 +1,89 @@
+统计实验室 · App Designer 与功能模块接口
+适用版本：MATLAB R2024b
+
+一、运行与编辑
+1. 将 StatisticsExperimentApp.mlapp 和 StatisticsExperimentMath.m 放在同一文件夹。
+2. MATLAB 切换到该文件夹，用 appdesigner('StatisticsExperimentApp.mlapp') 打开。
+3. 在 App Designer 中点击“运行”。直接运行 StatisticsExperimentApp 也可以。
+4. 界面及回调在 .mlapp 中修改；计算、文件读取、保存和图像导出在 Math 文件修改。
+5. src/StatisticsExperimentApp.m 是当前 .mlapp 导出的文本源码，用于 Git 差异审阅。
+   App Designer 保存后，在 exp1 目录执行 addpath('tools'); export_frontend;
+   同步源码。运行应用使用 .mlapp，不要将 src 添加到日常运行路径。
+6. 两个页面是同一网格单元中的面板：SimPage / AudioPage。设计时可在组件浏览器中
+   切换面板的 Visible 属性查看另一页；运行时由左侧导航控制。
+
+二、职责边界
+StatisticsExperimentApp：
+  createComponents：App Designer 生成的布局、控件和回调绑定。
+  buildSimulationPage/buildAudioPage：初始程序化界面构建辅助函数，当前生成入口不调用。
+  ImportAudio/AnalyzeAudio/RunSimulation/SaveData/SaveFigure：收集输入并调用 Math。
+  renderSimulation/renderAudio/renderWaveforms：消费后台返回数据，更新图和独立统计框。
+  beginOperation/finishOperation/CloseApp：防止重入，管理按钮状态与关闭时机。
+  theme：统一的颜色语义。回调错误显示在底部状态栏，悬停可查看完整信息。
+
+StatisticsExperimentMath：
+  静态服务；输入和输出仅包含普通数值、字符串、结构体，不接收 App 或 UIFigure。
+  图像导出临时创建专用图窗，并只清理自己创建的图窗。
+
+三、推荐调用接口
+1. result = StatisticsExperimentMath.runSimulation(m, N, binMode, binValue)
+   m：每次求和的独立 U(0,1) 随机数个数，正整数。
+   N：重复试验数，即最终样本数，正整数。m*N <= 1e8。
+   binMode：'count'（区间数）或 'width'（区间宽度）。
+   binValue：正整数区间数（最多 5000）或正数宽度。
+   result.Samples：N×1；TheoreticalMean=m/2，TheoreticalVariance=m/12。
+
+2. audio = StatisticsExperimentMath.readAudio(filePath)
+   filePath：音频完整路径。
+   audio.Samples：N×C，C=1或2，保留前两个独立声道，不进行混合或伪双声道复制。
+   SampleRate：Hz；Duration：秒；OriginalChannels：原始声道数。
+   SourceFile / SourcePath：文件名和来源路径。
+
+3. preview = StatisticsExperimentMath.previewAudio(audio, t0, t1, maxPoints)
+   t0/t1：秒，选择左闭右开时间段 [t0,t1)，必须至少包含两个采样点。
+   maxPoints：预览规模参数；波形抽取保留局部极值，不用于统计计算。
+   ActualWindow：按采样点对齐的起止秒数；SampleCount：每声道样本数。
+   ChannelCount：处理声道数；Waveforms(k).Time/Amplitude：预览时间/幅值列向量。
+
+4. result = StatisticsExperimentMath.analyzeAudio(audio, t0, t1, binMode, binValue)
+   使用选中时间段内的全部样本分别计算各声道统计量与概率密度。
+   Samples：N×C；Time：N×1 绝对时间（秒）；SampleIndices：[首点,末点]，均包含。
+   RequestedWindow / ActualWindow：请求时间段与实际时间段，单位秒。
+
+5. files = StatisticsExperimentMath.saveResult(result, filePath)
+   .mat：完整 result 快照，含参数、样本、来源、统计及绘图数据。
+   .csv：样本表，另附同名 _statistics.csv 统计表。
+   files：实际保存文件路径的 cell 数组。
+
+6. StatisticsExperimentMath.exportFigure(result, filePath)
+   .png：200 dpi；.pdf：矢量图。导出结果快照，不读取当前页面控件。
+   保留声道、概率密度、拟合参考以及均值/方差/标准差。
+
+四、结果结构约定
+所有 result 均有：
+  Kind：'simulation' 或 'audio'；Samples：完整样本矩阵。
+  Statistics.Mean / Variance / Std / RMS 等：1×C 行向量。
+  Variance 使用 N-1 归一化，即样本方差；Std 为对应样本标准差。
+  BinEdges：共同区间边界；BinMode / BinParameter：本次分箱设置。
+  Plot.Density：区间数×C 的概率密度，积分（密度×宽度之和）为1。
+  Plot.FitX：800×1；Plot.FitDensity：800×C，使用样本均值/标准差的高斯参考。
+  零标准差时 FitDensity 为 NaN，不显示无法定义的连续高斯密度曲线。
+  仿真额外返回 Plot.TheoryDensity，对应理论均值 m/2 和理论方差 m/12。
+  CreatedAt：生成时间字符串。
+
+五、错误与生命周期约定
+  Math 使用 StatisticsExperimentMath:* 标识抛出参数、输入和文件格式错误。
+  前端捕获异常、保留主窗口并恢复操作按钮；取消文件对话框不析构 App。
+  参数修改会清除对应旧统计结果，避免保存与当前参数不一致的数据。
+  工作期间禁止重复启动和提前关闭；正常关闭仅通过窗口关闭回调/析构入口。
+  App 采用 AppBase.registerApp 的标准生命周期，支持无输出参数直接启动。
+
+六、验证入口
+  tests/test_math_core.m：基础数学与分箱、时间窗检查。
+  tests/test_backend_services.m：后台服务和单区间导出回归。
+  tests/test_app_integration.m：真实按钮回调、保存取消/成功、单/双声道切换、错误恢复。
+  tests/verify_staged_app.m：在指定目录加载真正的 .mlapp，验证自定义参数与设计器模型。
+  tests/run_all_tests.m：统一运行上述检查，结果写入 tests/output（Git 忽略）。
+  测试音频由脚本生成，不依赖本机录音或绝对路径。GUI 流程通过确定性的文件对话框
+  替身调用真实按钮回调；退出时恢复 MATLAB 路径，避免影响正常文件选择。
+  export_frontend 和设计器模型检查使用 R2024b 内部接口；运行应用本身不依赖这些工具。

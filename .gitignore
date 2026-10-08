@@ -1,0 +1,25 @@
+# MATLAB local state, autosave and generated outputs
+*.asv
+*.m~
+*.mlapp.bak
+*.autosave
+*.log
+*.slxc
+slprj/
+codegen/
+
+# Local experiment artifacts and test output
+exp1/tests/output/
+exp1/results/
+exp1/build/
+exp1/backup/
+*.mlappinstall
+*.zip
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+~$*

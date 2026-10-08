@@ -1,0 +1,12 @@
+* text=auto
+*.m text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+*.mlapp binary
+*.mlx binary
+*.mat binary
+*.png binary
+*.pdf binary
+*.wav binary
