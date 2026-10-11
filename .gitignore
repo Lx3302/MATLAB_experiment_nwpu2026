@@ -9,10 +9,18 @@ slprj/
 codegen/
 
 # Local experiment artifacts and test output
+/实验指导书.docx
 exp1/tests/output/
 exp1/results/
 exp1/build/
 exp1/backup/
+exp2/results/
+exp3/results/
+exp4/results/
+exp2/tests/output/
+exp3/tests/output/
+exp4/tests/output/
+tests/output/
 *.mlappinstall
 *.zip
 
